@@ -85,7 +85,7 @@ modular_fcn/
 └── notebooks/                            # Interactive analysis & validation notebooks
     ├── validate.ipynb                    # Quantitative validation & hard-negative dataset export
     ├── post_training_analysis.ipynb      # Synthetic stress testing (clusters & resolution limits)
-    ├── peak_detection_fcn_curvefit.ipynb # Single-spectrum end-to-end detection & refinement demo
+    └── peak_detection_fcn_curvefit.ipynb # Single-spectrum end-to-end detection & refinement demo
 ```
 
 ---

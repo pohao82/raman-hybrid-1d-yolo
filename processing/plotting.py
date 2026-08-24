@@ -53,8 +53,10 @@ def plot_reconstruction(
     ylim_main: Optional[Tuple[float, float]] = None,
     ylim_res: Optional[Tuple[float, float]] = None,
     figsize: Tuple[int, int] = (16, 8),
+    dpi: int = 200,
     save_path: Optional[str] = None,
     show_plot: bool = False,
+    **kwargs: Any,
 ) -> plt.Figure:
     """
     Standardized, unified plotting function for Raman spectrum analysis.
@@ -97,6 +99,8 @@ def plot_reconstruction(
         Custom y-axis limits (ymin, ymax) for the residual panel.
     figsize : tuple of (int, int), default (16, 8)
         Matplotlib figure dimensions.
+    dpi : int, default 200
+        Dots per inch (resolution) for the figure canvas rendering.
     save_path : str, optional
         If provided, saves the figure to the specified file path.
     show_plot : bool, default False
@@ -115,7 +119,7 @@ def plot_reconstruction(
     # CASE 1: Raw / Unfitted View (Single Panel)
     # -------------------------------------------------------------------------
     if fit_result is None:
-        fig, ax = plt.subplots(figsize=(figsize[0], max(5, figsize[1] - 2)))
+        fig, ax = plt.subplots(figsize=(figsize[0], max(5, figsize[1] - 2)), dpi=dpi)
         
         # Raw ungridded data
         if raw_freq is not None and raw_intensity is not None:
@@ -153,7 +157,7 @@ def plot_reconstruction(
         fig.tight_layout()
 
         if save_path:
-            fig.savefig(save_path, dpi=200)
+            fig.savefig(save_path, dpi=max(dpi, 300))
         if show_plot:
             plt.show()
 
@@ -178,6 +182,7 @@ def plot_reconstruction(
     fig, (ax1, ax2) = plt.subplots(
         2, 1, figsize=figsize, sharex=True,
         gridspec_kw={"height_ratios": [3, 1]},
+        dpi=dpi
     )
 
     # --- Main Panel: Raw Data, Fits, Baseline, Components ---
