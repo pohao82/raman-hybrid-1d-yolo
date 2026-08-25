@@ -234,3 +234,4 @@ The [`notebooks/`](file:///home/phchang/AI_space_sync/raman_peaks_detection/modu
 *   **Algorithmic Baseline Correction:** Native integration of automated background subtraction algorithms directly into the data pre-processing pipeline to handle severe instrument noise.
 *   **Multichannel FCN Inputs:** Feeding signal derivatives alongside the raw data into the neural network to improve feature extraction and detection in dense, overlapping regions.
 *   **Batch Acceleration for 2D Grids:** Scaling the divide-and-conquer optimization engine to efficiently process massive datasets in parallel, such as 100x100 spatial mapping grids.
+# raman-hybrid-1d-yolo
