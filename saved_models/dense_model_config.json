@@ -1,20 +1,20 @@
 {
   "N_INPUT_CHANNELS": 1,
   "K": 21,
-  "n_points": 4000,
+  "n_points": 4800,
   "pos_range": [
     0,
     800.0
   ],
   "amp_range": [
-    0.2,
+    0.05,
     10.0
   ],
   "gamma_range": [
     1.0,
-    6.0
+    7.0
   ],
-  "scale": 50000,
+  "scale": 10000,
   "dark": 0.02,
   "window_width_range": [
     30,
@@ -25,21 +25,26 @@
   "BASE_LAYERS": [
     {
       "out_channels": 16,
-      "kernel_size": 9,
+      "kernel_size": 11,
       "stride": 1
     },
     {
       "out_channels": 32,
-      "kernel_size": 7,
+      "kernel_size": 9,
       "stride": 2
     },
     {
       "out_channels": 64,
-      "kernel_size": 5,
+      "kernel_size": 7,
       "stride": 2
     },
     {
       "out_channels": 128,
+      "kernel_size": 5,
+      "stride": 2
+    },
+    {
+      "out_channels": 256,
       "kernel_size": 3,
       "stride": 2
     }

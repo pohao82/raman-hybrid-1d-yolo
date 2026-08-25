@@ -2,5 +2,5 @@ app
 .test
 .dev
 .bak
-_bak
+*_bak
 __pycache__

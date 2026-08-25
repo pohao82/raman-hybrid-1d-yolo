@@ -6,6 +6,12 @@ The framework pairs a **1D Fully Convolutional Network (FCN) dense detector** (i
 
 ---
 
+<p align="center">
+  <img src="./doc/demo.gif" alt="Streamlit Web App Demo" width="90%" />
+</p>
+
+
+
 ## 1. Architectural Overview & Physics Motivation
 
 The pipeline processes raw spectra through a four-stage hybrid architecture, decoupling peak localization from non-linear physics refinement. 
@@ -92,23 +98,64 @@ modular_fcn/
 
 ## 4. Quickstart & Workflows
 
-### 4.1. Environment Setup (Docker Workflow)
-   The project uses a two-stage GPU-enabled Docker workflow based on NVIDIA PyTorch images:
-#### 4.1.1. Initial Setup & Image Customization (First Time Only)
-Launch the base NVIDIA container using docker_torch_first.sh:
+### 4.1. Requirements & Environment Setup
+
+#### 4.1.1. Installation Requirements
+The pipeline requires Python 3.9+ and the dependencies specified in [`requirements.txt`](file:///home/phchang/AI_space_sync/raman_peaks_detection/modular_fcn/requirements.txt):
+
 ```bash
-bash docker_torch_first.sh
+pip install -r requirements.txt
 ```
-Inside the container, install CUDA-enabled PyTorch and project dependencies. Then, from the host machine, commit the configured container to a persistent image named `torch_ml_rapids`:
+
+Key packages include:
+* **`torch`**: Deep learning framework for 1D FCN training and dense peak localization (CUDA recommended).
+* **`numpy` & `scipy`**: Scientific numerical computing, Savitzky-Golay signal filtering, and Trust Region Reflective non-linear curve fitting (`scipy.optimize.least_squares`).
+* **`pandas`**: Tabular ingestion for single and multi-column experimental spectrum files and parameter table export.
+* **`matplotlib`**: Publication-quality spectrum reconstruction, lineshape decomposition, and residual plotting.
+* **`streamlit`**: Interactive web application GUI.
+
+---
+
+#### 4.1.2. Setup Option A: Standard Python Virtual Environment (`venv`) (CPU / Local)
+
+Because the 1D FCN model is compact and highly efficient (~100k parameters), CPU-only training and real-time inference take only a few minutes and require no external environment managers:
+
+```bash
+# 1. Create and activate a standard Python virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2. Install project dependencies
+pip install -r requirements.txt
 ```
-# From host terminal:
-docker commit torch_ml torch_ml_rapids
-```
-#### 4.1.2. Standard Daily Execution
-  For all subsequent runs, launch interactive GPU sessions using docker_torch.sh, which mounts your workspace and Hugging Face / cache directories to torch_ml_rapids:
-```
-  bash docker_torch.sh
-```
+
+---
+
+#### 4.1.3. Setup Option B: NVIDIA GPU Docker Container (CUDA / GPU)
+
+For CUDA-accelerated GPU training and rapid inference, the project uses official NVIDIA PyTorch container images directly from NGC:
+
+1. **Initial Setup & Dependency Installation (First Time Only)**:
+   Launch the base NVIDIA container using [`docker_torch_first.sh`](file:///home/phchang/AI_space_sync/raman_peaks_detection/modular_fcn/docker_torch_first.sh):
+   ```bash
+   bash docker_torch_first.sh
+   ```
+   Inside the container, install the required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+   Then, from your host machine terminal, commit the configured container to a persistent image named `torch_ml_rapids`:
+   ```bash
+   docker commit torch_ml torch_ml_rapids
+   ```
+
+2. **Standard Execution**:
+   For subsequent sessions, launch interactive GPU sessions using [`docker_torch.sh`](file:///home/phchang/AI_space_sync/raman_peaks_detection/modular_fcn/docker_torch.sh) (which mounts your workspace, Hugging Face cache, and forwards port `8501` for the Streamlit web GUI):
+   ```bash
+   bash docker_torch.sh
+   ```
+
+---
 
 ### 4.2. Training the Base Model
 `main.py` synthesizes a Poisson-noised spectrum pool, precomputes geometric target grids, trains the `DenseDetector`, evaluates test performance, and (optionally) exports hard-mined failure cases:

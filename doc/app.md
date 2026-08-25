@@ -9,22 +9,23 @@ The architecture cleanly decouples:
 
 ---
 
-## 1. GUI Layout & Workflow
+### 1. GUI Layout & Workflow
 
 ```
 +----------------------------------------------------------------------------------------------------+
 |  SIDEBAR CONTROLS (LEFT PANEL)                    MAIN PANEL WORKFLOW                              |
-|  1. Model Path (.pt & .json)                      - Default View (Before Fitting):                 |
-|  2. File Upload / Sample Dropdown (CSV/TXT)          * Experimental spectrum & FCN detections      |
-|     - Frequency & Intensity Column Selectors         * Optional Initial FCN Proxy overlay          |
+|  1. Model Path (.pt & .json)                      - State 0: Raw Spectrum (Initial Default):       |
+|  2. File Upload / Sample Dropdown (CSV/TXT)          * Unaltered loaded experimental spectrum      |
+|     - Frequency & Intensity Column Selectors         * No candidate overlays                       |
 |  3. FCN Detection & Pre-processing:                                                                |
-|     - Savitzky-Golay Window & Poly Order Inputs   - Fitted View (After Fitting):                   |
-|     - Confidence & Noise Filter Thresholds           * Reconstructed Fit (Optimized After Fitting) |
-|  [🚀 Run Refinement Fit] [🔄 Reset to Raw]          * Linear Baseline & Individual Filled Peaks   |
-|  4. Pseudo-Voigt Refinement Settings                 * Two-Panel Display with Residuals            |
-|     - Global vs Regional (Divide & Conquer)          * Refined Parameter Table & CSV Download      |
-|     - Search window & width bounds                                                                 |
-|  5. Plot & Display Controls                                                                        |
+|     - Savitzky-Golay Window & Poly Order Inputs   - State 1: Peak Detections ([🔍 Detect Peaks]):  |
+|     - Confidence & Noise Filter Thresholds           * Candidate vertical markers & proxy overlay  |
+|  [🔍 Detect Peaks] [🚀 Refine Fit]                                                                 |
+|  [🔄 Reset to Raw Data]                           - State 2: Refined Fit ([🚀 Refine Fit]):        |
+|  4. Pseudo-Voigt Refinement Settings                 * Reconstructed fit from optimized params     |
+|     - Global vs Regional (Divide & Conquer)          * Linear Baseline & Individual Filled Peaks   |
+|     - Search window & width bounds                   * Two-Panel Display with Residuals            |
+|  5. Plot & Display Controls                          * Refined Parameter Table & CSV Download      |
 |     - Toggle components / predicted lines                                                          |
 |     - Custom X-axis & Y-axis overrides                                                             |
 +----------------------------------------------------------------------------------------------------+
@@ -40,18 +41,19 @@ The architecture cleanly decouples:
 
 ### 2. Flexible Experimental Data Input
 * **Upload Mode**: Drop in any `.csv`, `.txt`, `.tsv`, or `.dat` spectrum file.
-* **Sample Mode**: Direct dropdown access to bundled experimental datasets (`data/experiment_1/VV.txt`, `data/experiment_1/VH.txt`, `data/experiment_2/baseline_subtract.csv`).
+* **Sample Mode**: Direct dropdown access to bundled experimental datasets (`data/experiment_1/VV.txt`, `data/experiment_1/VH.txt`).
 * **Multi-Column Handling**: Automatically detects columns and provides interactive dropdowns to map the frequency/wavenumber axis (x) and intensity axis (y).
 
 ### 3. FCN Detection & Configurable Pre-processing
 * **Configurable Pre-smoothing (Detection Only)**: User-adjustable Savitzky-Golay integer inputs for **Window Length** (odd integer) and **Polynomial Order**. Pre-smoothing is used **strictly for initial FCN peak localization** to suppress high-frequency noise without distorting physical parameters.
 * **Confidence Tuning**: Interactive slider for FCN presence threshold ($p \in [0.10, 0.95]$).
 * **Noise Rejection**: Choice between flat intensity thresholding, dual-window Savitzky-Golay difference ($I_{\text{diff}}$), or raw candidate pass-through.
+* **On-Demand Peak Detection**: Clicking **`🔍 Detect Peaks`** triggers FCN forward inference and displays peak candidate markers overlaid on the spectrum.
 
 ### 4. On-Demand Non-Linear Refinement (Fitted on Direct Raw Signal)
 * **Direct Raw Signal Fitting**: When executing curve fitting, the non-linear optimizer fits directly against the **unaltered resampled raw signal** (preserving true physical peak amplitudes and lineshape wings) rather than the pre-smoothed signal.
-* **Default Raw View**: By default, shows only experimental data points and candidate FCN markers without triggering heavy fitting.
-* **On-Click Execution**: Clicking **`🚀 Run Refinement Fit`** runs bounded non-linear least squares optimization.
+* **Default Raw View**: Initially shows only loaded experimental data without running neural network inference.
+* **On-Click Execution**: Clicking **`🚀 Refine Fit`** runs bounded non-linear least squares optimization.
 * **Refinement Modes**:
   * **Global Simultaneous Fit** (`refine`): Fits all detected peaks at once.
   * **Divide-and-Conquer Regional Fit** (`refine_grouped`): Partitions complex spectra into natural islands to eliminate cross-talk.
@@ -68,6 +70,7 @@ The architecture cleanly decouples:
 * **Residual Panel (Bottom)**:
   * Point-by-point residual error ($y_{\text{raw}} - y_{\text{fit}}$) with a zero-reference line.
 * **Interactive Display Controls**:
+  * **Rendering Engine Selector**: Choose between **Vector (SVG)** (100% vector paths with infinite sharpness across Retina/4K displays) and **High-DPI Raster (PNG)** (customizable 150–400 DPI).
   * Checkbox toggles to show/hide individual lineshape components, before-fit proxy, or FCN vertical lines.
   * Number inputs to override X-axis range ($x_{\min}, x_{\max}$) and Y-axis limits (both main and residual panels).
 

@@ -9,14 +9,14 @@ class Config:
 
     # signal parameters 
     K: int = 21 # max number of slots(peaks)
-    n_points: int = 4000 # frequency mesh grid point
+    n_points: int = 4800 # frequency mesh grid point
     pos_range: tuple = (0, 800.0)
-    amp_range: tuple = (0.2, 10.0)  # height of the peaks
-    gamma_range: tuple = (1.0, 6.0)  # width # trying 7
+    amp_range: tuple = (0.05, 10.0)  # height of the peaks
+    gamma_range: tuple = (1.0, 7.0)  # width
 
     # poisson noise
-    scale: int = 50000
-    dark: float = 0.020
+    scale: int = 10000
+    dark: float = 0.02
 
     # sandwiched cluster
     window_width_range: tuple = (30,70)
@@ -25,11 +25,11 @@ class Config:
 
     # model layers — single source of truth, must match DenseDetector's conv stack
     BASE_LAYERS: list = field(default_factory=lambda: [
-        {"out_channels": 16,  "kernel_size": 9, "stride": 1},
-        {"out_channels": 32,  "kernel_size": 7, "stride": 2},
-        {"out_channels": 64,  "kernel_size": 5, "stride": 2},
-        {"out_channels": 128, "kernel_size": 3, "stride": 2},
-        # {"out_channels": 256, "kernel_size": 3, "stride": 2},  # just uncomment to add a layer
+        {"out_channels": 16,  "kernel_size": 11, "stride": 1},
+        {"out_channels": 32,  "kernel_size": 9, "stride": 2},
+        {"out_channels": 64,  "kernel_size": 7, "stride": 2},
+        {"out_channels": 128, "kernel_size": 5, "stride": 2},
+        {"out_channels": 256, "kernel_size": 3, "stride": 2},  # just uncomment to add a layer
     ])
 
     @property
@@ -66,16 +66,16 @@ class Config:
 class TrainConfig:
     model_name: str = 'dense_model'
     nbatch: int = 64
-    n_train: int = 6000
-    n_val: int = 500
-    n_test: int = 500
+    n_train: int = 50000
+    n_val: int = 5000
+    n_test: int = 5000
     n_epochs: int = 100
     learning_rate: float = 1e-3
     scheduler_factor: float = 0.5
     scheduler_patience: int = 5
 
     # Hard-data mining & retraining parameters
-    hard_data_path: str = 'hard_mined_v1.npz'      # Path to hard-mined .npz file (e.g. 'hard_mined_v1.npz'); None for standard base training
+    hard_data_path: str = None      # Path to hard-mined .npz file (e.g. 'hard_mined_v1.npz'); None for standard base training
     hard_oversample: int = 5        # Oversampling multiplier for hard cases when augmenting training data
     export_hard_data: str = 'hard_mined_v1.npz'    # Optional path to export newly mined test failures as .npz (e.g. 'hard_mined_v1.npz')
 

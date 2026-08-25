@@ -138,7 +138,7 @@ def plot_reconstruction(
         # Candidate peak vertical reference lines
         if show_predicted_lines and len(clean_predicted) > 0:
             for A, pos, gamma in clean_predicted:
-                ax.axvline(pos, color="steelblue", lw=1.0, ls=":", alpha=0.8)
+                ax.axvline(pos, color="steelblue", lw=1.2, ls=":", alpha=0.9)
 
         ax.set_xlabel(xlabel, fontsize=11)
         ax.set_ylabel(ylabel, fontsize=11)
@@ -187,7 +187,7 @@ def plot_reconstruction(
 
     # --- Main Panel: Raw Data, Fits, Baseline, Components ---
     if raw_freq is not None and raw_intensity is not None:
-        ax1.plot(raw_freq, raw_intensity, color="black", lw=1.0, ls="--", alpha=0.8, label="Raw Experimental Data")
+        ax1.plot(raw_freq, raw_intensity, color="black", lw=0.8, alpha=1.0, label="Raw Experimental Data")
     else:
         ax1.plot(freq, raw_signal, color="black", lw=1.0, ls="--", label="Raw Signal")
 
@@ -200,9 +200,9 @@ def plot_reconstruction(
 
     # Reconstructed signal from optimized peaks (AFTER fitting)
     if show_optimized_fit:
-        ax1.plot(freq, reconstructed_fit, color="crimson", lw=1.8, label="Optimized Fit (After Fitting)")
+        ax1.plot(freq, reconstructed_fit, color="crimson", lw=1.8, alpha=0.7, label="Optimized Fit (After Fitting)")
 
-    ax1.plot(freq, baseline, color="gray", lw=1.0, ls=":", label="Linear Baseline")
+    ax1.plot(freq, baseline, color="gray", lw=1.2, ls=":", label="Linear Baseline")
 
     # Optional: Individual Pseudo-Voigt components (AFTER fitting)
     if show_components and len(peaks) > 0:
@@ -214,7 +214,7 @@ def plot_reconstruction(
     # Candidate peak vertical reference lines
     if show_predicted_lines and len(clean_predicted) > 0:
         for A, pos, gamma in clean_predicted:
-            ax1.axvline(pos, color="steelblue", lw=0.9, ls=":", alpha=0.7)
+            ax1.axvline(pos, color="steelblue", lw=1.0, ls=":", alpha=0.8)
 
     ax1.set_ylabel(ylabel, fontsize=11)
     ax1.set_title(title, fontsize=13, fontweight="bold")
