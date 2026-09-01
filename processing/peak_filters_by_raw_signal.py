@@ -6,7 +6,7 @@ def filter_by_raw_signal_flat(peaks, W, raw_signal, cfg, threshold):
     prediction with no supporting raw signal there is almost certainly
     the model firing on noise/context rather than a real feature."""
     kept = []
-    for _, A, pos, gamma in peaks:
+    for conf, A, pos, gamma in peaks:
         g = int(np.argmin(np.abs(cfg.w_grid - pos)))
         cell_start = cfg.w_grid[g]
         cell_end = cell_start + cfg.grid_spacing
@@ -15,15 +15,127 @@ def filter_by_raw_signal_flat(peaks, W, raw_signal, cfg, threshold):
             continue
         local_max = raw_signal[mask].max()
         if local_max >= threshold:
-            kept.append((A, pos, gamma))
+            kept.append((conf, A, pos, gamma))
     return kept
 
 
 #
 # Below, the filter is based on moving average
 #
+
+
 from scipy.signal import savgol_filter
 
+
+#
+# Multiscale moving average difference
+#
+def compute_multiscale_diff_movavg(signal, candidates, window_bank, W,
+                                   span=15, polyorder=1, scale=200.0):
+    """
+    Compute a multi-scale i_diff profile for each candidate peak.Baseline
+
+    For every adjacent pair of window sizes in `window_bank`, this computes
+    the dual-window Savitzky-Golay i_diff metric
+        i_diff = sqrt( (smooth_short - smooth_long)^2 * scale )
+    smoothed once more (window=7) to reduce single-sample spikes, then takes
+    the local max within +/-span samples of each candidate's position.
+
+    Each candidate therefore gets one i_diff value per scale-pair, letting
+    downstream code accept/reject based on whichever scale best matches
+    that peak's width (see idiff_accept-style logic).
+
+    Parameters
+    ----------
+    signal : 1D array
+        Intensity values on the `W` grid.
+    candidates : list of (id, A, pos, gamma)
+        FCN-detected candidates; `pos` is in the same physical units as `W`
+        (e.g. cm^-1), NOT an array index.
+    window_bank : list of int
+        Sorted Savitzky-Golay window sizes, e.g. [5, 9, 15, 25, 41, 71].
+        Consecutive entries form the scale-pairs used for i_diff.
+    W : 1D array
+        Physical-unit grid matching `signal` (used to convert `pos` -> index).
+    span : int
+        Half-width (in samples) of the local window used to pull out the
+        i_diff value around each candidate.
+    polyorder : int
+        Polynomial order for all Savitzky-Golay smooths (short/long window
+        smooths and the final i_diff smoothing pass).
+    scale : float
+        Multiplicative scale factor inside the i_diff formula.
+
+    Returns
+    -------
+    list of np.ndarray
+        One array per candidate, length == len(window_bank) - 1, holding
+        the local-max i_diff value at each adjacent scale-pair.
+    """
+    # Precompute each window's smooth once for the whole spectrum (reused
+    # across all candidates and all scale-pairs that touch this window).
+    smooths = {
+        w: savgol_filter(signal, window_length=w, polyorder=polyorder)
+        for w in window_bank
+    }
+
+    profiles = []
+    for _, A, pos, gamma in candidates:
+        # pos is in physical units (e.g. cm^-1) -- map to a grid index via W,
+        # not int(round(pos)), which would silently misindex the signal.
+        idx = np.clip(np.searchsorted(W, pos), 0, len(signal) - 1)
+        lo, hi = max(0, idx - span), min(len(signal), idx + span + 1)
+
+        vals = []
+        for w_short, w_long in zip(window_bank[:-1], window_bank[1:]):
+            i_diff = (smooths[w_short] - smooths[w_long]) ** 2 * scale
+            i_diff = savgol_filter(i_diff ** 0.5, window_length=7, polyorder=polyorder)
+            vals.append(i_diff[lo:hi].max())
+
+        profiles.append(np.array(vals))
+
+    return profiles
+
+
+#
+# Multiscale gaussian difference DoG
+#
+
+from scipy.ndimage import gaussian_filter1d
+
+
+def compute_multiscale_diff_gaussian(signal, candidates, window_bank, W,
+                                     span=15, polyorder=1, scale=200.0):
+    """
+    candidates: list of (_, A, pos, gamma) tuples, or raw position values —
+    position lookup against W happens internally.
+    """
+    signal = np.asarray(signal, dtype=float)
+    W = np.asarray(W, dtype=float)
+
+    # accept either full peak tuples or bare positions
+    positions = np.array([c[2] if hasattr(c, "__len__") else c for c in candidates])
+    cand_idx = np.array([np.argmin(np.abs(W - p)) for p in positions], dtype=int)
+
+    if span % 2 == 0:
+        span += 1
+    baseline = savgol_filter(signal, window_length=span, polyorder=polyorder, mode='interp')
+    residual = signal - baseline
+
+    sigmas = np.asarray(window_bank, dtype=float) / 6.0
+    smoothed = [gaussian_filter1d(residual, sigma=s, mode='nearest') for s in sigmas]
+
+    n_channels = len(sigmas) - 1
+    idiff = np.zeros((len(cand_idx), n_channels))
+    for i in range(n_channels):
+        diff = smoothed[i] - smoothed[i + 1]
+        idiff[:, i] = (diff[cand_idx] ** 2) * scale
+    return idiff
+
+
+# -----------------------------------------
+#     testing for now (not used yet)
+# -----------------------------------------
 
 def _valid_savgol_window(window_length, n_samples, polyorder):
     """

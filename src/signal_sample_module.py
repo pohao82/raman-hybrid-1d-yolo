@@ -4,7 +4,7 @@ from .lineshapes import lorentzian_np, voigt, gaussian
 rng = np.random.default_rng(0)
 
  
-def sample_amplitude_skewed(rng, small_range=(0.3,5), large_range=(5,16), large_prob=0.15):
+def sample_amplitude_skewed(rng, small_range=(0.3,2), large_range=(2,12), large_prob=0.10):
     """Mostly small peaks, occasionally a large one -- directly controls
     the proportion via large_prob instead of relying on uniform sampling
     over the full range to incidentally produce enough small examples."""
@@ -128,10 +128,10 @@ def generate_dataset(n_samples, rng, cfg, add_noise=True):
         if rng.random() < sandwiched_prob:
             # Deliberately inject the known-hard pattern (small peaks sandwiched 
             # between large neighbors)
-            peaks = generate_sandwiched_cluster(rng, 
-                                                amp_range, 
-                                                gamma_range, 
-                                                pos_range, 
+            peaks = generate_sandwiched_cluster(rng,
+                                                amp_range,
+                                                gamma_range,
+                                                pos_range,
                                                 window_width_range=window_width_range)
             n_extra = rng.integers(0, n_peak_max-2) # remove the max and min, n_peak-2 in the middle
             for _ in range(n_extra):

@@ -7,21 +7,21 @@
     800.0
   ],
   "amp_range": [
-    0.05,
+    0.02,
     10.0
   ],
   "gamma_range": [
     1.0,
-    7.0
+    8.0
   ],
-  "scale": 10000,
-  "dark": 0.02,
+  "scale": 80000,
+  "dark": 0.005,
   "window_width_range": [
     30,
-    70
+    80
   ],
-  "sandwiched_prob": 0.2,
-  "n_peak_max": 5,
+  "sandwiched_prob": 0.25,
+  "n_peak_max": 6,
   "BASE_LAYERS": [
     {
       "out_channels": 16,

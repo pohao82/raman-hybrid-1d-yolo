@@ -466,7 +466,7 @@ def _refine_peaks_only(freq, target, predicted_peaks, pos_window=5.0,
 
 def refine_grouped(freq, raw_signal, predicted_peaks, target_peaks_per_group=5,
                    separation_factor=3.0, low_signal_threshold=0.1, min_run=5,
-                   max_group_multiple=3, pad=15.0, pos_window=5.0, width_scale=3.0,
+                   max_group_multiple=20, pad=15.0, pos_window=5.0, width_scale=3.0,
                    fit_baseline=False, baseline_degree=1, baseline_window_factor=3.0,
                    loss="soft_l1", f_scale=None, verbose=0):
     """

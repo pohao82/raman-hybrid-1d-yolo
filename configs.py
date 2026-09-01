@@ -11,17 +11,17 @@ class Config:
     K: int = 21 # max number of slots(peaks)
     n_points: int = 4800 # frequency mesh grid point
     pos_range: tuple = (0, 800.0)
-    amp_range: tuple = (0.05, 10.0)  # height of the peaks
-    gamma_range: tuple = (1.0, 7.0)  # width
+    amp_range: tuple = (0.02, 10.0)  # height of the peaks
+    gamma_range: tuple = (1.0, 8.0)  # width
 
     # poisson noise
-    scale: int = 10000
-    dark: float = 0.02
+    scale: int = 80000
+    dark: float = 0.005
 
     # sandwiched cluster
-    window_width_range: tuple = (30,70)
-    sandwiched_prob: float = 0.2
-    n_peak_max: int = 5
+    window_width_range: tuple = (30,80)
+    sandwiched_prob: float = 0.25
+    n_peak_max: int = 6
 
     # model layers — single source of truth, must match DenseDetector's conv stack
     BASE_LAYERS: list = field(default_factory=lambda: [
@@ -66,10 +66,10 @@ class Config:
 class TrainConfig:
     model_name: str = 'dense_model'
     nbatch: int = 64
-    n_train: int = 50000
-    n_val: int = 5000
-    n_test: int = 5000
-    n_epochs: int = 100
+    n_train: int = 40000
+    n_val: int = 4000
+    n_test: int = 4000
+    n_epochs: int = 90
     learning_rate: float = 1e-3
     scheduler_factor: float = 0.5
     scheduler_patience: int = 5
