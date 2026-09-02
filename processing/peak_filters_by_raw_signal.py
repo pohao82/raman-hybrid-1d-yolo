@@ -1,12 +1,16 @@
 import numpy as np
 
-def filter_by_raw_signal_flat(peaks, W, raw_signal, cfg, threshold):
-    """For each predicted peak, check whether the RAW signal itself
-    actually reaches threshold within that peak's grid cell -- a
-    prediction with no supporting raw signal there is almost certainly
-    the model firing on noise/context rather than a real feature."""
+def filter_by_raw_signal_flat(detections, W, raw_signal, cfg, threshold):
+    """For each detection, check whether the RAW signal itself actually
+    reaches threshold within that detection's grid cell -- a detection
+    with no supporting raw signal there is almost certainly the model
+    firing on noise/context rather than a real feature.
+
+    In:  detections -- list of (conf, A, pos, gamma)
+    Out: list of (conf, A, pos, gamma) -- the score is preserved.
+    """
     kept = []
-    for conf, A, pos, gamma in peaks:
+    for conf, A, pos, gamma in detections:
         g = int(np.argmin(np.abs(cfg.w_grid - pos)))
         cell_start = cfg.w_grid[g]
         cell_end = cell_start + cfg.grid_spacing
@@ -30,10 +34,10 @@ from scipy.signal import savgol_filter
 #
 # Multiscale moving average difference
 #
-def compute_multiscale_diff_movavg(signal, candidates, window_bank, W,
+def compute_multiscale_diff_movavg(signal, detections, window_bank, W,
                                    span=15, polyorder=1, scale=200.0):
     """
-    Compute a multi-scale i_diff profile for each candidate peak.Baseline
+    Compute a multi-scale i_diff profile for each detection.Baseline
 
     For every adjacent pair of window sizes in `window_bank`, this computes
     the dual-window Savitzky-Golay i_diff metric
@@ -49,8 +53,8 @@ def compute_multiscale_diff_movavg(signal, candidates, window_bank, W,
     ----------
     signal : 1D array
         Intensity values on the `W` grid.
-    candidates : list of (id, A, pos, gamma)
-        FCN-detected candidates; `pos` is in the same physical units as `W`
+    detections : list of (conf, A, pos, gamma)
+        FCN detections; `pos` is in the same physical units as `W`
         (e.g. cm^-1), NOT an array index.
     window_bank : list of int
         Sorted Savitzky-Golay window sizes, e.g. [5, 9, 15, 25, 41, 71].
@@ -80,7 +84,7 @@ def compute_multiscale_diff_movavg(signal, candidates, window_bank, W,
     }
 
     profiles = []
-    for _, A, pos, gamma in candidates:
+    for conf, A, pos, gamma in detections:
         # pos is in physical units (e.g. cm^-1) -- map to a grid index via W,
         # not int(round(pos)), which would silently misindex the signal.
         idx = np.clip(np.searchsorted(W, pos), 0, len(signal) - 1)
@@ -104,17 +108,17 @@ def compute_multiscale_diff_movavg(signal, candidates, window_bank, W,
 from scipy.ndimage import gaussian_filter1d
 
 
-def compute_multiscale_diff_gaussian(signal, candidates, window_bank, W,
+def compute_multiscale_diff_gaussian(signal, detections, window_bank, W,
                                      span=15, polyorder=1, scale=200.0):
     """
-    candidates: list of (_, A, pos, gamma) tuples, or raw position values —
+    detections: list of (conf, A, pos, gamma) tuples, or raw position values —
     position lookup against W happens internally.
     """
     signal = np.asarray(signal, dtype=float)
     W = np.asarray(W, dtype=float)
 
-    # accept either full peak tuples or bare positions
-    positions = np.array([c[2] if hasattr(c, "__len__") else c for c in candidates])
+    # accept either full detection tuples (pos at idx 2) or bare positions
+    positions = np.array([c[2] if hasattr(c, "__len__") else c for c in detections])
     cand_idx = np.array([np.argmin(np.abs(W - p)) for p in positions], dtype=int)
 
     if span % 2 == 0:
@@ -158,12 +162,12 @@ def _valid_savgol_window(window_length, n_samples, polyorder):
     return max(w, min_w)
 
 
-def filter_by_raw_signal(peaks, W, raw_signal, cfg, threshold=0.01,
+def filter_by_raw_signal(detections, W, raw_signal, cfg, threshold=0.01,
                           window_short=10, window_long=30, polyorder=1,
                           scale_factor=100.0):
     """
-    For each predicted peak, check whether the RAW signal shows real
-    structure at that peak's grid cell -- a prediction with no
+    For each detection, check whether the RAW signal shows real
+    structure at that detection's grid cell -- a detection with no
     supporting structure there is almost certainly the model firing on
     noise/context rather than a real feature.
 
@@ -190,8 +194,9 @@ def filter_by_raw_signal(peaks, W, raw_signal, cfg, threshold=0.01,
     starts washing out real peak shape everywhere, inflating i_diff
     even in flat regions.
 
-    Returns the same shape as the original function: a list of
-    (A, pos, gamma) for peaks that pass.
+    In:  detections -- list of (conf, A, pos, gamma)
+    Out: list of (A, pos, gamma) peaks -- the score is dropped. (This is
+         the one place the arity narrows; filter_by_raw_signal_flat keeps it.)
     """
     W = np.asarray(W, dtype=float)
     raw_signal = np.asarray(raw_signal, dtype=float)
@@ -205,7 +210,7 @@ def filter_by_raw_signal(peaks, W, raw_signal, cfg, threshold=0.01,
     i_diff = (smooth_short - smooth_long) ** 2 * scale_factor
 
     kept = []
-    for _, A, pos, gamma in peaks:
+    for conf, A, pos, gamma in detections:
         g = int(np.argmin(np.abs(cfg.w_grid - pos)))
         cell_start = cfg.w_grid[g]
         cell_end = cell_start + cfg.grid_spacing

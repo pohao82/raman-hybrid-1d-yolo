@@ -20,9 +20,9 @@ def build_targets_batch(peaks_list, cfg, device='cpu'):
     amp_t = np.zeros((B, L), dtype=np.float32)
     gamma_t = np.zeros((B, L), dtype=np.float32)
 
-    for b, true_peaks in enumerate(peaks_list):
-        # each sample can and generally has multiple peaks
-        for A, pos, gamma in true_peaks:
+    for b, peaks in enumerate(peaks_list):
+        # each sample can and generally has multiple peaks -- (A, pos, gamma)
+        for A, pos, gamma in peaks:
             # g is the index of the grid point in w_grid that is closest in value to pos (the location of the peak).
             # np.argmin(...) Finds the index (position) of the smallest value in that distance array
             g = int(np.argmin(np.abs(w_grid - pos))) # the closest grid to the peak location (pos) 
@@ -51,8 +51,19 @@ def dense_loss(preds, targets):
     return presence_loss + reg_loss
 
 
-def training_loop(n_epochs, train_loader, val_loader, model, opt, scheduler):
+def training_loop(n_epochs, train_loader, val_loader, model, opt, scheduler,
+                  convergence_window=0, convergence_rel_tol=0.0,
+                  convergence_min_epochs=0):
+    """Train for up to n_epochs, restoring the best-val checkpoint on exit.
+
+    Convergence early stop (disabled when convergence_rel_tol <= 0): once at least
+    `convergence_min_epochs` have run, compare the mean val loss over the last
+    `convergence_window` epochs to the mean over the `convergence_window` epochs
+    before that; stop when their relative difference drops below
+    `convergence_rel_tol`. The windowed means smooth per-epoch noise.
+    """
     best_val, best_state = float("inf"), None
+    val_hist = []
 
     # Track dataset sizes for accurate loss averaging
     n_train = len(train_loader.dataset)
@@ -98,6 +109,7 @@ def training_loop(n_epochs, train_loader, val_loader, model, opt, scheduler):
                 val_epoch_loss += loss_v.item() * xb.size(0)
 
         val_loss = val_epoch_loss / n_val
+        val_hist.append(val_loss)
 
         # ---------------- SCHEDULING & LOGGING ---------------- #
         scheduler.step(val_loss)
@@ -109,6 +121,20 @@ def training_loop(n_epochs, train_loader, val_loader, model, opt, scheduler):
 
         if (epoch + 1) % 10 == 0:
             print(f"epoch {epoch+1:3d}  train={train_loss:.4f}  val={val_loss:.4f}  lr={opt.param_groups[0]['lr']:.2e}")
+
+        # ---------------- CONVERGENCE EARLY STOP ---------------- #
+        w = convergence_window
+        if (w and convergence_rel_tol > 0
+                and epoch + 1 >= convergence_min_epochs
+                and len(val_hist) >= 2 * w):
+            prev = float(np.mean(val_hist[-2 * w:-w]))
+            recent = float(np.mean(val_hist[-w:]))
+            rel = abs(recent - prev) / (abs(prev) + 1e-8)
+            if rel < convergence_rel_tol:
+                print(f"Converged at epoch {epoch+1}: rel val change "
+                      f"{rel:.2e} < {convergence_rel_tol:.0e} "
+                      f"(mean of last {w} vs previous {w} epochs)")
+                break
 
     # Load best weights back into model before returning
     if best_state is not None:

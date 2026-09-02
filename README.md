@@ -175,7 +175,9 @@ python main.py --hard-data hard_mined_v1.npz --oversample 5
 If `--hard-data` points to a file that doesn't exist, the script logs a warning and falls back to base training rather than failing.
 
 ### 4.4. CLI Reference
-`main.py` exposes the run-level knobs from `TrainConfig` (epochs, batch size, learning rate, dataset sizes, model name, hard-data path/oversample factor, seed). Structural data/physics parameters (`amp_range`, `gamma_range`, `K`, `sandwiched_prob`, `N_INPUT_CHANNELS`, etc.) live on `Config` and are still edited in `configs.py`.
+`main.py` exposes the run-level knobs from `TrainConfig` (epochs, batch size, learning rate, dataset sizes, model name, hard-data path/oversample factor, seed). Structural data/physics parameters (`amp_range`, `gamma_range`, `K`, `dataset_mix`, `N_INPUT_CHANNELS`, etc.) live on `Config` and are still edited in `configs.py`.
+
+The training pool is assembled from per-pattern blocks (`random`, `sandwiched`, `skewed`) whose proportions are set by `Config.dataset_mix`. Each pattern has its own generator in `src/signal_sample_module.py` (`PATTERN_GENERATORS` registry); adding a new synthetic hard pattern is one generator function plus one `dataset_mix` key.
 
 ```bash
 python main.py \

@@ -37,11 +37,15 @@ def load_model(model_path, config_path, device=None, mode="eval"):
 # --- Inference: threshold + greedy NMS ---
 # cpu, pure numpy object
 def decode_and_nms(presence, offset, amplitude, gamma, cfg, threshold=0.5, min_sep_ratio=1.0):
+    """Decode the model's per-grid heads into a list of detections.
 
+    Returns a list of (conf, A, pos, gamma) 4-tuples -- one scored detection
+    per surviving grid cell, sorted by descending conf.
+    """
     amp_range = cfg.amp_range
     gamma_range = cfg.gamma_range
     w_grid = cfg.w_grid
-    grid_spacing = cfg.grid_spacing 
+    grid_spacing = cfg.grid_spacing
 
     candidates = []
     for g in range(len(presence)):
@@ -49,15 +53,16 @@ def decode_and_nms(presence, offset, amplitude, gamma, cfg, threshold=0.5, min_s
             # unnormolize
             pos = w_grid[g] + offset[g]*grid_spacing
             A = amplitude[g]*(amp_range[1]-amp_range[0]) + amp_range[0]
-            gam = gamma[g]*(gamma_range[1]-gamma_range[0]) + gamma_range[0]
-            candidates.append((presence[g], A, pos, gam))
+            gamma_g = gamma[g]*(gamma_range[1]-gamma_range[0]) + gamma_range[0]
+            candidates.append((presence[g], A, pos, gamma_g))
     candidates.sort(key=lambda c: -c[0])
 
     detected = []
     for cand in candidates:
-        # min_sep now scales with the STRONGER candidate's own fitted
-        # width, instead of one fixed value for every peak regardless of
-        # how broad or narrow it actually is
+        # cand / k are (conf, A, pos, gamma); compare pos (idx 2) against the
+        # already-kept detection's gamma (idx 3). min_sep now scales with the
+        # STRONGER candidate's own fitted width, instead of one fixed value for
+        # every peak regardless of how broad or narrow it actually is
         if all(abs(cand[2]-k[2]) > min_sep_ratio*k[3] for k in detected):
             detected.append(cand)
         #else:
@@ -68,7 +73,9 @@ def decode_and_nms(presence, offset, amplitude, gamma, cfg, threshold=0.5, min_s
 def predict_peaks_dense(model, raw_signal, cfg, threshold=0.5, min_sep=5.0, device='cpu'):
     """
     Dense-model equivalent of predict_peaks -- forward pass, decode
-    grid cells above threshold, then greedy NMS to collapse duplicates. 
+    grid cells above threshold, then greedy NMS to collapse duplicates.
+
+    Returns a list of (conf, A, pos, gamma) detections.
     """
     model.eval()
     with torch.no_grad():

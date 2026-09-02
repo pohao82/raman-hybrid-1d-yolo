@@ -21,16 +21,20 @@ from src.lineshapes import pseudo_voigt, lorentzian_np
 
 
 def _normalize_predicted_peaks(predicted_peaks: Optional[List[Union[Tuple, List]]]) -> List[Tuple[float, float, float]]:
-    """Normalizes predicted peaks to [(A, pos, gamma), ...]."""
+    """Normalize to a list of `peaks` (A, pos, gamma).
+
+    Accepts either `peaks` (A, pos, gamma) or `detections` (conf, A, pos, gamma)
+    and returns `peaks` in both cases (the score, if present, is dropped).
+    """
     if predicted_peaks is None:
         return []
     clean = []
     for p in predicted_peaks:
         if len(p) == 4:
-            # (conf, A, pos, gamma)
+            # detection: (conf, A, pos, gamma)
             clean.append((float(p[1]), float(p[2]), float(p[3])))
         elif len(p) == 3:
-            # (A, pos, gamma)
+            # peak: (A, pos, gamma)
             clean.append((float(p[0]), float(p[1]), float(p[2])))
     return clean
 
@@ -69,10 +73,11 @@ def plot_reconstruction(
         Unaltered resampled experimental signal on `freq`.
     fit_result : dict, optional
         Dictionary returned by `refine()` or `refine_grouped()`.
-        Must contain 'peaks' [(A, x0, sigma, eta), ...] and 'baseline' (b0, b1).
-        If None, generates a single-panel experimental spectrum view.
+        Must contain 'peaks' as refined_peaks [(A, x0, sigma, eta), ...] and
+        'baseline' (b0, b1). If None, generates a single-panel spectrum view.
     predicted_peaks : list of tuples, optional
-        Candidate peak detections from FCN (either (A, pos, gamma) or (conf, A, pos, gamma)).
+        Either `peaks` (A, pos, gamma) or `detections` (conf, A, pos, gamma);
+        normalized to `peaks` internally.
     raw_freq : np.ndarray, optional
         Original un-resampled experimental frequency axis.
     raw_intensity : np.ndarray, optional
@@ -166,14 +171,14 @@ def plot_reconstruction(
     # -------------------------------------------------------------------------
     # CASE 2: Fitted View (Two Panels: Reconstruction + Residuals)
     # -------------------------------------------------------------------------
-    peaks = fit_result.get("peaks", [])
+    refined_peaks = fit_result.get("peaks", [])  # (A, x0, sigma, eta) each
     baseline_coeffs = fit_result.get("baseline", (0.0, 0.0))
     b0, b1 = float(baseline_coeffs[0]), float(baseline_coeffs[1])
     baseline = b0 + b1 * freq
 
     # Calculate reconstructed signal from optimized Pseudo-Voigt peaks (AFTER fitting)
     optimized_peaks_curve = np.zeros_like(freq, dtype=float)
-    for A, x0, sigma, eta in peaks:
+    for A, x0, sigma, eta in refined_peaks:
         optimized_peaks_curve += pseudo_voigt(freq, A, x0, sigma, eta)
     reconstructed_fit = baseline + optimized_peaks_curve
 
@@ -205,8 +210,8 @@ def plot_reconstruction(
     ax1.plot(freq, baseline, color="gray", lw=1.2, ls=":", label="Linear Baseline")
 
     # Optional: Individual Pseudo-Voigt components (AFTER fitting)
-    if show_components and len(peaks) > 0:
-        for i, (A, x0, sigma, eta) in enumerate(peaks):
+    if show_components and len(refined_peaks) > 0:
+        for i, (A, x0, sigma, eta) in enumerate(refined_peaks):
             comp = baseline + pseudo_voigt(freq, A, x0, sigma, eta)
             ax1.plot(freq, comp, lw=1.0, alpha=0.75, label=f"P{i+1}: {x0:.1f} cm⁻¹ (η={eta:.2f})")
             ax1.fill_between(freq, baseline, comp, alpha=0.08)
@@ -218,7 +223,7 @@ def plot_reconstruction(
 
     ax1.set_ylabel(ylabel, fontsize=11)
     ax1.set_title(title, fontsize=13, fontweight="bold")
-    ncol = min(4, max(2, len(peaks) // 4 + 1)) if len(peaks) > 0 else 2
+    ncol = min(4, max(2, len(refined_peaks) // 4 + 1)) if len(refined_peaks) > 0 else 2
     ax1.legend(fontsize=8, ncol=ncol, loc="upper right")
     ax1.grid(True, linestyle="--", alpha=0.3)
 

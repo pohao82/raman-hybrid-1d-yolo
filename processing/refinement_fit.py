@@ -250,6 +250,7 @@ def partition_peaks(freq, raw_signal, predicted_peaks, target_peaks_per_group=5,
     freq = np.asarray(freq, dtype=float)
     raw_signal = np.asarray(raw_signal, dtype=float)
 
+    # predicted_peaks are (A, pos, gamma): p[1] = pos, p[2] = gamma
     order = np.argsort([p[1] for p in predicted_peaks])
     sorted_peaks = [predicted_peaks[i] for i in order]
     positions = np.array([p[1] for p in sorted_peaks])

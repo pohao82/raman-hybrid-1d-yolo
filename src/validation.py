@@ -7,14 +7,14 @@ cases for hard-mining into a retraining or fine-tuning set.
 
 CONFIRMED DATA FORMATS:
 
-  1. `predict_peaks_dense(...)` returns a list of 4-tuples:
-         (confidence, A, position, gamma)
-     built from `candidates.append((presence[g], A, pos, gam))`.
+  1. a "detection" (from `predict_peaks_dense(...)`) is a 4-tuple:
+         (conf, A, pos, gamma)
+     built from `candidates.append((presence[g], A, pos, gamma_g))`.
 
-  2. `peaks_test[b]` (from `generate_dataset`) is a list of 3-tuples:
-         (A, position, gamma)
+  2. a "peak" (from `generate_dataset`, e.g. `peaks_test[b]`) is a 3-tuple:
+         (A, pos, gamma)
 
-  Both use *position* (not grid index) in the same units as `cfg.W`.
+  Both use *pos* (not grid index) in the same units as `cfg.W`.
 
   3. `cfg.w_grid` gives the frequency-shift value at the *start* of each
      grid cell. `position_to_cell` finds the nearest grid cell by
@@ -35,15 +35,15 @@ from src.inference import predict_peaks_dense
 #  Peak matching
 # ---------------------------------------------------------------------------
 
-def match_peaks(true_peaks, pred_peaks, tol):
+def match_peaks(true_pos, pred_pos, tol):
     """
     Greedy nearest-neighbor matching between true and predicted peak
     positions (1D). Matches closest pairs first, subject to a distance
-    tolerance, each peak used at most once.
+    tolerance, each position used at most once.
 
     Parameters
     ----------
-    true_peaks, pred_peaks : array-like of float positions
+    true_pos, pred_pos : array-like of float positions (NOT peak tuples)
     tol : float
         Maximum distance to count as a match, in the same units as the
         positions (e.g. cm^-1).
@@ -51,20 +51,20 @@ def match_peaks(true_peaks, pred_peaks, tol):
     Returns
     -------
     matches : list of (true_idx, pred_idx)
-    fn_idx  : list of true_peaks indices with no match (missed / FN)
-    fp_idx  : list of pred_peaks indices with no match (spurious / FP)
+    fn_idx  : list of true_pos indices with no match (missed / FN)
+    fp_idx  : list of pred_pos indices with no match (spurious / FP)
     """
-    true_peaks = np.asarray(true_peaks, dtype=float)
-    pred_peaks = np.asarray(pred_peaks, dtype=float)
+    true_pos = np.asarray(true_pos, dtype=float)
+    pred_pos = np.asarray(pred_pos, dtype=float)
 
-    if len(true_peaks) == 0 and len(pred_peaks) == 0:
+    if len(true_pos) == 0 and len(pred_pos) == 0:
         return [], [], []
-    if len(true_peaks) == 0:
-        return [], [], list(range(len(pred_peaks)))
-    if len(pred_peaks) == 0:
-        return [], list(range(len(true_peaks))), []
+    if len(true_pos) == 0:
+        return [], [], list(range(len(pred_pos)))
+    if len(pred_pos) == 0:
+        return [], list(range(len(true_pos))), []
 
-    dist = np.abs(true_peaks[:, None] - pred_peaks[None, :])
+    dist = np.abs(true_pos[:, None] - pred_pos[None, :])
 
     matches = []
     used_true, used_pred = set(), set()
@@ -83,8 +83,8 @@ def match_peaks(true_peaks, pred_peaks, tol):
         used_true.add(i)
         used_pred.add(j)
 
-    fn_idx = [i for i in range(len(true_peaks)) if i not in used_true]
-    fp_idx = [j for j in range(len(pred_peaks)) if j not in used_pred]
+    fn_idx = [i for i in range(len(true_pos)) if i not in used_true]
+    fp_idx = [j for j in range(len(pred_pos)) if j not in used_pred]
     return matches, fn_idx, fp_idx
 
 
@@ -130,16 +130,15 @@ def evaluate_model(model, cfg, device, X_raw, peaks_list, tol=None):
         x_raw = X_raw[b]
         x_np = x_raw.numpy() if torch.is_tensor(x_raw) else np.asarray(x_raw)
 
-        # true peaks: list of (A, position, gamma)
-        true_tuples = list(peaks_list[b])
-        true_peaks = np.array([t[1] for t in true_tuples], dtype=float)
+        # true peaks: list of (A, pos, gamma)
+        true_peaks = list(peaks_list[b])
+        true_pos = np.array([p[1] for p in true_peaks], dtype=float)  # (A, pos, gamma) -> pos
 
-        # predicted candidates: list of (confidence, A, position, gamma)
-        detected = predict_peaks_dense(model, x_np, cfg, device=device)
-        detected = list(detected)
-        pred_peaks = np.array([d[2] for d in detected], dtype=float)
+        # predicted detections: list of (conf, A, pos, gamma)
+        detected = list(predict_peaks_dense(model, x_np, cfg, device=device))
+        pred_pos = np.array([d[2] for d in detected], dtype=float)  # (conf, A, pos, gamma) -> pos
 
-        matches, fn_idx, fp_idx = match_peaks(true_peaks, pred_peaks, tol)
+        matches, fn_idx, fp_idx = match_peaks(true_pos, pred_pos, tol)
         total_tp += len(matches)
         total_fn += len(fn_idx)
         total_fp += len(fp_idx)
@@ -153,41 +152,41 @@ def evaluate_model(model, cfg, device, X_raw, peaks_list, tol=None):
             presence, offset, amp, gamma = model(x_t)
         presence_np = presence.squeeze(0).cpu().numpy()
 
-        true_cells = [position_to_cell(p, cfg) for p in true_peaks]
+        true_cells = [position_to_cell(p, cfg) for p in true_pos]
 
         for i in fn_idx:
-            A_true, pos_true, gam_true = true_tuples[i]
+            A_true, pos_true, gamma_true = true_peaks[i]  # (A, pos, gamma)
             cell = true_cells[i]
             collision = true_cells.count(cell) > 1
             fn_records.append({
                 "sample_idx": b,
                 "position": float(pos_true),
                 "amplitude": float(A_true),
-                "gamma": float(gam_true),
+                "gamma": float(gamma_true),
                 "grid_cell": cell,
                 "raw_presence": float(presence_np[cell]),
                 "grid_collision": collision,
                 "n_true_in_profile": len(true_peaks),
-                "n_pred_in_profile": len(pred_peaks),
+                "n_pred_in_profile": len(pred_pos),
                 "X_raw": x_np,
-                "true_peaks": true_tuples,
+                "true_peaks": true_peaks,
             })
 
         for j in fp_idx:
-            conf_pred, A_pred, pos_pred, gam_pred = detected[j]
+            conf_pred, A_pred, pos_pred, gamma_pred = detected[j]  # (conf, A, pos, gamma)
             cell = position_to_cell(pos_pred, cfg)
             fp_records.append({
                 "sample_idx": b,
                 "position": float(pos_pred),
                 "amplitude": float(A_pred),
-                "gamma": float(gam_pred),
+                "gamma": float(gamma_pred),
                 "confidence": float(conf_pred),
                 "grid_cell": cell,
                 "raw_presence": float(presence_np[cell]),
                 "n_true_in_profile": len(true_peaks),
-                "n_pred_in_profile": len(pred_peaks),
+                "n_pred_in_profile": len(pred_pos),
                 "X_raw": x_np,
-                "true_peaks": true_tuples,
+                "true_peaks": true_peaks,
             })
 
     precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) else float("nan")

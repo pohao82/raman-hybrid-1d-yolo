@@ -7,17 +7,17 @@ Supports both:
 
 Usage:
   # 1. Standard base training:
-  python main_merged.py
+  python main.py
 
   # 2. Retraining with hard-mined data:
-  python main_merged.py --hard-data hard_mined_v1.npz --oversample 5
+  python main.py --hard-data hard_mined_v1.npz --oversample 5
 
   # 3. Custom hyperparameters via CLI:
-  python main_merged.py --epochs 150 --lr 1e-3 --batch-size 64
+  python main.py --epochs 150 --lr 1e-3 --batch-size 64
 
 Note:
   CLI flags cover TrainConfig (optimization/run knobs) only. Data/physics
-  knobs that live on Config (amp_range, K, sandwiched_prob, N_INPUT_CHANNELS,
+  knobs that live on Config (amp_range, K, dataset_mix, N_INPUT_CHANNELS,
   ...) are structural and still edited in configs.py.
 """
 
@@ -191,6 +191,9 @@ def main() -> None:
         model=model,
         opt=optimizer,
         scheduler=scheduler,
+        convergence_window=cfg_train.convergence_window,
+        convergence_rel_tol=cfg_train.convergence_rel_tol,
+        convergence_min_epochs=cfg_train.convergence_min_epochs,
     )
     model.load_state_dict(best_state)
     print(f"\nTraining Complete. Best Validation Loss: {best_val_loss:.4f}")
