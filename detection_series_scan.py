@@ -12,7 +12,7 @@ sections 1-3:
   1. resample_to_training_grid
   2. savgol_filter smoothing (detection only, not for downstream fitting)
   3. predict_peaks_dense (FCN inference)
-  4. compute_multiscale_diff_movavg + threshold gating (raw-signal filter)
+  4. filter_by_multiscale_movavg + filter_by_raw_signal_flat (raw-signal filters)
 
 Produces:
   - detected_peaks_summary.csv   : T, n_peaks, peak positions (per T)
@@ -42,7 +42,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
 from src.inference import load_model, predict_peaks_dense, resample_to_training_grid
-from processing.peak_filters_by_raw_signal import (compute_multiscale_diff_movavg,
+from processing.peak_filters_by_raw_signal import (filter_by_multiscale_movavg,
                                                    filter_by_raw_signal_flat)
 
 
@@ -81,7 +81,7 @@ def detect_peaks_single(
     real_freq, real_intensity, cnn_model, cfg, device,
     detect_threshold=0.6,
     window_bank=(11, 35, 71),
-    signal_threshold=0.6,
+    signal_threshold=2.0,
     average_window=6
 ):
     """Returns (raw_resampled, detections_filtered) where detections_filtered
@@ -93,16 +93,12 @@ def detect_peaks_single(
     detected = predict_peaks_dense(cnn_model, smooth_for_detect, threshold=detect_threshold,
                                     cfg=cfg, device=device)
 
-    scale_profiles = compute_multiscale_diff_movavg(
-        raw_resampled, detected, list(window_bank), cfg.W, span=30, scale=200
+    detections_filtered = filter_by_multiscale_movavg(
+        detected, cfg.W, raw_resampled, cfg,
+        threshold=signal_threshold, window_bank=window_bank, span=30,
     )
 
-    detections_filtered = []
-    for (conf, A, pos, gamma), profile in zip(detected, scale_profiles):
-        if np.any(profile > signal_threshold):
-            detections_filtered.append((conf, A, pos, gamma))
-
-    fixed_threshold = 0.2
+    fixed_threshold = 0.15
     detections_filtered = filter_by_raw_signal_flat(detections_filtered, cfg.W, raw_resampled, cfg, threshold=fixed_threshold)
 
     return raw_resampled, detections_filtered
@@ -123,7 +119,7 @@ def run_detection_scan(csv_path, model_path, config_path, device=None, verbose=T
     summary_rows = []
 
     window_bank = (11, 35, 71)
-    signal_threshold = 0.2
+    signal_threshold = 1.5
 
     for k, (T, col) in enumerate(zip(temps, col_names)):
         if verbose:
