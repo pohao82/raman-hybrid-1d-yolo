@@ -209,7 +209,7 @@ def refine(freq, raw_signal, predicted_peaks, pos_window=5.0,
 
 def find_low_signal_splits(freq, raw_signal, threshold=0.1, min_run=5):
     """
-    Locate candidate baseline regions: stretches where |raw_signal|
+    Locate **candidate baseline** regions: stretches where |raw_signal|
     stays at or below `threshold` for at least `min_run` consecutive
     samples. Returns the midpoint frequency of each such stretch,
     sorted ascending. These are frequencies where cutting the spectrum
