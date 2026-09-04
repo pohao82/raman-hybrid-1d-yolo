@@ -187,12 +187,19 @@ def run_refinement_pipeline(
     width_scale: float = 1.5,
     target_peaks_per_grp: int = 5,
     sep_factor: float = 4.0,
+    from_fitted: bool = False,
+    resume_baseline: Tuple[float, float] = (0.0, 0.0),
 ) -> Optional[Dict[str, Any]]:
     """
     Executes bounded non-linear least squares Pseudo-Voigt fitting.
 
-    `peaks` must be (A, pos, gamma) -- strip the score first if you have
+    `peaks` is normally (A, pos, gamma) -- strip the score first if you have
     detections (conf, A, pos, gamma).
+
+    With `from_fitted=True`, `peaks` is an already-refined
+    (A, x0, sigma, eta) list and the fit resumes from it (see
+    `build_guess_from_fitted`): re-fitting an unedited list converges
+    immediately instead of restarting from FCN-shaped assumptions.
     """
     if len(peaks) == 0:
         return None
@@ -204,6 +211,7 @@ def run_refinement_pipeline(
             separation_factor=sep_factor,
             pos_window=pos_window,
             width_scale=width_scale,
+            from_fitted=from_fitted,
             verbose=0
         )
     else:
@@ -211,6 +219,8 @@ def run_refinement_pipeline(
             freq_in, raw_signal_in, peaks,
             pos_window=pos_window,
             width_scale=width_scale,
+            from_fitted=from_fitted,
+            resume_baseline=resume_baseline,
             verbose=0
         )
     return fit_result
@@ -239,11 +249,16 @@ def compute_fit_residual_and_rms(
 
 
 def fitted_to_seeds(peaks_fitted: List[Tuple]) -> List[Tuple]:
-    """Convert edited fitted peaks [A, x0, sigma, eta] back to refine() seeds
-    (A, pos, gamma): pos = x0, gamma = sigma / 2 (inverse of build_initial_guess's
-    sigma0 = 2 * gamma)."""
-    return [(float(A), float(x0), max(float(sigma) / 2.0, 1e-3))
-            for A, x0, sigma, *_ in peaks_fitted]
+    """Normalize edited fitted rows into resume seeds (A, x0, sigma, eta) for
+    `run_refinement_pipeline(..., from_fitted=True)`. All four parameters,
+    eta included, are carried through so a re-fit starts at the converged
+    state rather than restarting from sigma0 = 2*gamma / eta0 = 0.5."""
+    seeds = []
+    for row in peaks_fitted:
+        A, x0, sigma, eta = (list(row) + [0.5])[:4]
+        seeds.append((float(A), float(x0), max(float(sigma), 1e-3),
+                      min(max(float(eta), 0.0), 1.0)))
+    return seeds
 
 
 def build_peak_dataframe(refined_peaks: List[Tuple]) -> pd.DataFrame:

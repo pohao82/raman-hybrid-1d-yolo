@@ -460,7 +460,8 @@ elif stage == "fitted":
                 or refit_from_detected or refit_from_fitted)
 
     if need_fit:
-        if refit_from_fitted and "fit_df" in st.session_state:
+        resume = refit_from_fitted and "fit_df" in st.session_state
+        if resume:
             seeds = fitted_to_seeds(
                 st.session_state["fit_df"].dropna(how="any")[FIT_COLS].values.tolist())
         else:
@@ -471,6 +472,13 @@ elif stage == "fitted":
             st.warning("No peaks to fit. Go back to **🔍 Detect Peaks** and add some.")
             st.stop()
 
+        resume_baseline = (0.0, 0.0)
+        if resume and st.session_state.get("fit_result"):
+            _b = st.session_state["fit_result"].get("baseline", (0.0, 0.0))
+            resume_baseline = (float(_b[0]), float(_b[1]))
+
+        import time as _time
+        _t0 = _time.perf_counter()
         with st.spinner("Refining peak parameters via non-linear least squares..."):
             fr = run_refinement_pipeline(
                 freq_in, raw_signal_in, seeds,
@@ -479,17 +487,35 @@ elif stage == "fitted":
                 width_scale=width_scale,
                 target_peaks_per_grp=target_peaks_per_grp,
                 sep_factor=sep_factor,
+                from_fitted=resume,
+                resume_baseline=resume_baseline,
             )
+        _fit_secs = _time.perf_counter() - _t0
         if fr is None:
             st.warning("Refinement returned no result. Check the peak list and try again.")
             st.stop()
         st.session_state["fit_result"] = fr
         st.session_state["fit_df"] = pd.DataFrame(fr["peaks"], columns=FIT_COLS).astype(float)
+        #st.session_state["_fit_diag"] = {
+        #    "path": "resume (from_fitted)" if resume else "fresh (from detections)",
+        #    "seconds": round(_fit_secs, 2),
+        #    "seed_peaks": len(seeds),
+        #    "mode": "grouped" if "Regional" in refine_mode else "global",
+        #    "n_groups": len(fr.get("groups", []) or []) or 1,
+        #    "group_sizes": [len(g) for g in fr.get("groups", []) or []],
+        #    "nfev": ([gr.get("raw_result").nfev for gr in fr.get("group_results", []) or []
+        #              if gr.get("raw_result") is not None]
+        #             or ([fr["raw_result"].nfev] if fr.get("raw_result") is not None else [])),
+        #}
         _clear_editor_state()
 
     fit_result = st.session_state["fit_result"]
     if "fit_df" not in st.session_state:   # defensive: fit_result survived without its frame
         st.session_state["fit_df"] = pd.DataFrame(fit_result["peaks"], columns=FIT_COLS).astype(float)
+
+    #if st.session_state.get("_fit_diag"):
+    #    with st.expander("⏱ fit diagnostics (temporary)", expanded=True):
+    #        st.json(st.session_state["_fit_diag"])
 
     _xlim = (x_min_user, x_max_user) if (x_min_user != 0 or x_max_user != 0) else None
     _ylim = (y_min_user, y_max_user) if custom_y else None
@@ -533,7 +559,8 @@ elif stage == "fitted":
         fig = build_fit_figure(
             freq_plot, raw_plot, fit_result, rows,
             raw_freq=raw_freq, raw_intensity=raw_intensity,
-            show_components=show_components, xlim=_xlim, ylim=_ylim,
+            show_fit=show_optimized_fit, show_components=show_components,
+            xlim=_xlim, ylim=_ylim,
             title=(f"Pseudo-Voigt Refinement ({len(rows)} peaks)   —   "
                    "click spectrum to add · click ▼ to remove · edit the table · then Re-fit"),
         )

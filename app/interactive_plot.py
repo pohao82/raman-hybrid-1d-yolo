@@ -124,13 +124,16 @@ def build_detection_figure(freq, resampled_raw, peaks, *, raw_freq=None,
 
 
 def build_fit_figure(freq, raw_signal, fit_result, edit_peaks, *, raw_freq=None,
-                     raw_intensity=None, show_components=True, xlim=None, ylim=None,
-                     title="Pseudo-Voigt Refinement"):
+                     raw_intensity=None, show_fit=True, show_components=True,
+                     xlim=None, ylim=None, title="Pseudo-Voigt Refinement"):
     """Two-panel (reconstruction + residual) editable fitted view.
 
     `edit_peaks` is a list of [A, x0, sigma, eta] -- ▼ markers AND the reconstruction
     curve are drawn from it, so manual edits and click-added peaks show immediately.
     `fit_result` (dict from refine/refine_grouped) supplies only the linear baseline.
+
+    `show_fit` toggles the summed reconstruction ("fit") curve; `show_components`
+    toggles the per-peak curves. The residual panel is always shown.
     """
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
@@ -162,8 +165,9 @@ def build_fit_figure(freq, raw_signal, fit_result, edit_peaks, *, raw_freq=None,
             name="raw", mode="lines", opacity=0.7,
             line=dict(color="#9ca3af", width=0.8, dash="dot"), hoverinfo="skip",
         ), row=1, col=1)
-    fig.add_trace(go.Scatter(x=freq, y=recon, name="fit", mode="lines",
-        line=dict(color="#dc2626", width=2), hoverinfo="skip"), row=1, col=1)
+    if show_fit:
+        fig.add_trace(go.Scatter(x=freq, y=recon, name="fit", mode="lines",
+            line=dict(color="#dc2626", width=2), hoverinfo="skip"), row=1, col=1)
     fig.add_trace(go.Scatter(x=freq, y=baseline, name="baseline", mode="lines",
         line=dict(color="#9ca3af", width=1, dash="dot"), hoverinfo="skip"), row=1, col=1)
     if show_components:

@@ -28,6 +28,7 @@ def build_initial_guess(predicted_peaks, pos_window=5.0, width_scale=3.0):
     """
     x0_list, lb_list, ub_list = [], [], []
 
+    # from detected peakks (A, x0, sigma, eta)
     for A, pos, gamma in predicted_peaks:
         gamma = max(gamma, 1e-3)
         sigma0 = 2.0 * gamma  # pseudo-voigt sigma ~ Lorentzian FWHM
@@ -49,6 +50,56 @@ def build_initial_guess(predicted_peaks, pos_window=5.0, width_scale=3.0):
 
     # baseline: b0, b1 (linear). Loosen/tighten as needed.
     x0_list += [0.0, 0.0]
+    lb_list += [-np.inf, -np.inf]
+    ub_list += [np.inf, np.inf]
+
+    return np.array(x0_list), (np.array(lb_list), np.array(ub_list))
+
+
+def build_guess_from_fitted(fitted_peaks, pos_window=5.0, width_scale=3.0,
+                            baseline=(0.0, 0.0)):
+    """
+    Same flat layout as `build_initial_guess`, but seeded from an ALREADY
+    refined peak list -- [A, x0, sigma, eta] per peak -- so a re-fit resumes
+    from the converged state instead of restarting from FCN-shaped assumptions
+    (sigma0 = 2*gamma, eta0 = 0.5).
+
+    Every parameter -- eta and the linear baseline (b0, b1) included -- starts
+    at its fitted value; bounds are recentered on that value (position
+    +/- pos_window, width within a width_scale multiple). Re-fitting an
+    unedited list is then a near no-op: the optimizer starts at the minimum --
+    including any eta pinned to 0 or 1 -- and exits immediately.
+
+        fitted_peaks: iterable of (A, x0, sigma, eta)
+        pos_window:   allowed +/- shift around each fitted position
+        width_scale:  allowed multiplicative range around each fitted sigma
+        baseline:     (b0, b1) from the previous fit -- carried forward so the
+                      optimizer doesn't have to re-discover it from zero
+    """
+    x0_list, lb_list, ub_list = [], [], []
+
+    # from fitted peakks (A, x0, sigma, eta)
+    for A, x0, sigma, eta in fitted_peaks:
+        A = max(float(A), 0.0)
+        sigma = max(float(sigma), 1e-3)
+        eta = min(max(float(eta), 0.0), 1.0)
+
+        x0_list += [A, x0, sigma, eta]
+        lb_list += [
+            0.0,
+            x0 - pos_window,
+            sigma / width_scale,
+            0.0,
+        ]
+        ub_list += [
+            3.0 * max(A, 1e-6),
+            x0 + pos_window,
+            sigma * width_scale,
+            1.0,
+        ]
+
+    b = list(baseline) + [0.0, 0.0]
+    x0_list += [float(b[0]), float(b[1])]
     lb_list += [-np.inf, -np.inf]
     ub_list += [np.inf, np.inf]
 
@@ -89,12 +140,21 @@ def residuals(params, x, y, n_peaks):
 # Main refinement routine
 # ----------------------------------------------------------------------
 def refine(freq, raw_signal, predicted_peaks, pos_window=5.0,
-           width_scale=3.0, loss="soft_l1", f_scale=None, verbose=1):
+           width_scale=3.0, loss="soft_l1", f_scale=None, verbose=1,
+           from_fitted=False, resume_baseline=(0.0, 0.0)):
+    """`from_fitted=True` -> `predicted_peaks` is an already-refined
+    [A, x0, sigma, eta] list and the fit resumes from it (see
+    `build_guess_from_fitted`), carrying `resume_baseline` (b0, b1) forward;
+    otherwise it's FCN output (A, pos, gamma)."""
     freq = np.asarray(freq, dtype=float)
     raw_signal = np.asarray(raw_signal, dtype=float)
     n_peaks = len(predicted_peaks)
 
-    x0, bounds = build_initial_guess(predicted_peaks, pos_window, width_scale)
+    if from_fitted:
+        x0, bounds = build_guess_from_fitted(predicted_peaks, pos_window,
+                                             width_scale, baseline=resume_baseline)
+    else:
+        x0, bounds = build_initial_guess(predicted_peaks, pos_window, width_scale)
 
     if f_scale is None:
         # rough noise scale estimate; tune for the data
@@ -108,6 +168,7 @@ def refine(freq, raw_signal, predicted_peaks, pos_window=5.0,
         loss=loss,          # robust loss softens influence of tail mismatch
         f_scale=f_scale,
         method="trf",
+        x_scale="jac",      # auto-scale params (A~1, x0~500, sigma~5, eta~0.5)
         verbose=verbose,
     )
 
@@ -422,17 +483,24 @@ def _residuals_peaks_only(params, x, y, n_peaks):
 
 
 def _refine_peaks_only(freq, target, predicted_peaks, pos_window=5.0,
-                        width_scale=3.0, loss="soft_l1", f_scale=None, verbose=0):
+                        width_scale=3.0, loss="soft_l1", f_scale=None, verbose=0,
+                        from_fitted=False):
     """
     Same as `refine()`, but with NO baseline term at all -- used inside
     `refine_grouped` once a single global baseline has already been
     subtracted from `target`, so each group only ever fits peaks.
+
+    `from_fitted=True` -> `predicted_peaks` is an already-refined
+    [A, x0, sigma, eta] list; resume from it instead of FCN (A, pos, gamma).
     """
     freq = np.asarray(freq, dtype=float)
     target = np.asarray(target, dtype=float)
     n_peaks = len(predicted_peaks)
 
-    x0_full, (lb_full, ub_full) = build_initial_guess(predicted_peaks, pos_window, width_scale)
+    if from_fitted:
+        x0_full, (lb_full, ub_full) = build_guess_from_fitted(predicted_peaks, pos_window, width_scale)
+    else:
+        x0_full, (lb_full, ub_full) = build_initial_guess(predicted_peaks, pos_window, width_scale)
     x0, lb, ub = x0_full[:-2], lb_full[:-2], ub_full[:-2]  # drop b0, b1 slots
 
     if f_scale is None:
@@ -442,7 +510,8 @@ def _refine_peaks_only(freq, target, predicted_peaks, pos_window=5.0,
     result = least_squares(
         _residuals_peaks_only, x0, bounds=(lb, ub),
         args=(freq, target, n_peaks),
-        loss=loss, f_scale=f_scale, method="trf", verbose=verbose,
+        loss=loss, f_scale=f_scale, method="trf", x_scale="jac",
+        verbose=verbose,
     )
 
     peaks_refined = _unpack_peaks_only(result.x, n_peaks)
@@ -469,7 +538,7 @@ def refine_grouped(freq, raw_signal, predicted_peaks, target_peaks_per_group=5,
                    separation_factor=3.0, low_signal_threshold=0.1, min_run=5,
                    max_group_multiple=20, pad=15.0, pos_window=5.0, width_scale=3.0,
                    fit_baseline=False, baseline_degree=1, baseline_window_factor=3.0,
-                   loss="soft_l1", f_scale=None, verbose=0):
+                   loss="soft_l1", f_scale=None, verbose=0, from_fitted=False):
     """
     Replacement for `refine()` when you have many peaks (25+):
     fits ONE global baseline for the whole spectrum, subtracts it,
@@ -495,6 +564,11 @@ def refine_grouped(freq, raw_signal, predicted_peaks, target_peaks_per_group=5,
         baseline_window_factor: how many peak-widths (gamma) around
              each predicted peak to exclude when estimating the global
              baseline (see `estimate_global_baseline`).
+        from_fitted: if True, `predicted_peaks` is an already-refined
+             [A, x0, sigma, eta] list and each group resumes from those
+             values (see `build_guess_from_fitted`) instead of restarting
+             from FCN (A, pos, gamma). Re-fitting an unedited list then
+             converges immediately.
 
     Returns a dict:
         peaks:         array of [A, x0, sigma, eta] stacked across all
@@ -533,11 +607,15 @@ def refine_grouped(freq, raw_signal, predicted_peaks, target_peaks_per_group=5,
         target_signal = raw_signal
 
     # partition using the flattened signal so "nearly zero" is judged
-    # relative to the actual background, not a possibly-sloped raw one
+    # relative to the actual background, not a possibly-sloped raw one.
+    # from_fitted peaks carry sigma (~2*gamma) in slot [2] instead of the
+    # FCN gamma partition_peaks expects, so halve separation_factor to keep
+    # the island cuts at the same physical scale as the initial fit.
+    part_sep = separation_factor / 2.0 if from_fitted else separation_factor
     groups, boundaries = partition_peaks(
         freq, target_signal, predicted_peaks,
         target_peaks_per_group=target_peaks_per_group,
-        separation_factor=separation_factor,
+        separation_factor=part_sep,
         low_signal_threshold=low_signal_threshold,
         min_run=min_run,
         max_group_multiple=max_group_multiple,
@@ -583,6 +661,7 @@ def refine_grouped(freq, raw_signal, predicted_peaks, target_peaks_per_group=5,
             sub_freq, sub_target, peaks_in_group,
             pos_window=pos_window, width_scale=width_scale,
             loss=loss, f_scale=f_scale, verbose=verbose,
+            from_fitted=from_fitted,
         )
 
         # accumulate this group's fitted peaks over the FULL freq range
