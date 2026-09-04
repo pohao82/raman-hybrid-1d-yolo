@@ -429,6 +429,7 @@ elif stage == "detected":
         fig = build_detection_figure(
             cfg.W, resampled_raw_signal, rows,
             raw_freq=raw_freq, raw_intensity=raw_intensity,
+            show_initial_proxy=show_initial_proxy,
             xlim=_xlim, ylim=_ylim,
             title=(f"FCN Peak Detections ({len(rows)} peaks)   —   "
                    "click spectrum to add · click ▼ to remove · or edit the table"),
@@ -472,6 +473,8 @@ elif stage == "fitted":
             st.warning("No peaks to fit. Go back to **🔍 Detect Peaks** and add some.")
             st.stop()
 
+        st.session_state["fit_seed_peaks"] = [tuple(s[:3]) for s in seeds]  # (A, pos, gamma) fed into THIS fit
+
         resume_baseline = (0.0, 0.0)
         if resume and st.session_state.get("fit_result"):
             _b = st.session_state["fit_result"].get("baseline", (0.0, 0.0))
@@ -512,6 +515,7 @@ elif stage == "fitted":
     fit_result = st.session_state["fit_result"]
     if "fit_df" not in st.session_state:   # defensive: fit_result survived without its frame
         st.session_state["fit_df"] = pd.DataFrame(fit_result["peaks"], columns=FIT_COLS).astype(float)
+    st.session_state.setdefault("fit_seed_peaks", [])
 
     #if st.session_state.get("_fit_diag"):
     #    with st.expander("⏱ fit diagnostics (temporary)", expanded=True):
@@ -560,6 +564,7 @@ elif stage == "fitted":
             freq_plot, raw_plot, fit_result, rows,
             raw_freq=raw_freq, raw_intensity=raw_intensity,
             show_fit=show_optimized_fit, show_components=show_components,
+            initial_peaks=st.session_state["fit_seed_peaks"], show_initial_proxy=show_initial_proxy,
             xlim=_xlim, ylim=_ylim,
             title=(f"Pseudo-Voigt Refinement ({len(rows)} peaks)   —   "
                    "click spectrum to add · click ▼ to remove · edit the table · then Re-fit"),

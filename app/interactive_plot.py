@@ -95,10 +95,16 @@ def _base_layout(fig, title, xlim, ylim, height):
 
 
 def build_detection_figure(freq, resampled_raw, peaks, *, raw_freq=None,
-                           raw_intensity=None, xlim=None, ylim=None,
-                           title="FCN Peak Detections"):
-    """Single-panel editable detection view. `peaks` is a list of (A, pos, gamma)."""
+                           raw_intensity=None, show_initial_proxy=False,
+                           xlim=None, ylim=None, title="FCN Peak Detections"):
+    """Single-panel editable detection view. `peaks` is a list of (A, pos, gamma).
+
+    `show_initial_proxy` overlays the Lorentzian-sum reconstruction of `peaks`
+    (everything here is "before fitting" by definition) so the raw FCN guess
+    can be compared against the signal ahead of running the optimizer.
+    """
     import plotly.graph_objects as go
+    from src.lineshapes import lorentzian_np
 
     freq = np.asarray(freq, dtype=float)
     sig = np.asarray(resampled_raw, dtype=float)
@@ -114,6 +120,13 @@ def build_detection_figure(freq, resampled_raw, peaks, *, raw_freq=None,
             name="raw", mode="lines", opacity=0.7,
             line=dict(color="#9ca3af", width=0.8, dash="dot"), hoverinfo="skip",
         ))
+    if show_initial_proxy and len(peaks) > 0:
+        proxy = np.sum([lorentzian_np(freq, float(A), float(p), float(g))
+                        for (A, p, g) in peaks], axis=0)
+        fig.add_trace(go.Scatter(
+            x=freq, y=proxy, name="Initial FCN Proxy", mode="lines",
+            line=dict(color="#2563eb", width=1.3, dash="dash"), hoverinfo="skip",
+        ))
     for x0 in pos:
         fig.add_vline(x=x0, line=dict(color="#e53e3e", width=0.8, dash="dot"), opacity=0.3)
 
@@ -125,6 +138,7 @@ def build_detection_figure(freq, resampled_raw, peaks, *, raw_freq=None,
 
 def build_fit_figure(freq, raw_signal, fit_result, edit_peaks, *, raw_freq=None,
                      raw_intensity=None, show_fit=True, show_components=True,
+                     initial_peaks=None, show_initial_proxy=False,
                      xlim=None, ylim=None, title="Pseudo-Voigt Refinement"):
     """Two-panel (reconstruction + residual) editable fitted view.
 
@@ -133,11 +147,14 @@ def build_fit_figure(freq, raw_signal, fit_result, edit_peaks, *, raw_freq=None,
     `fit_result` (dict from refine/refine_grouped) supplies only the linear baseline.
 
     `show_fit` toggles the summed reconstruction ("fit") curve; `show_components`
-    toggles the per-peak curves. The residual panel is always shown.
+    toggles the per-peak curves. `show_initial_proxy` overlays the Lorentzian-sum
+    curve of `initial_peaks` -- the (A, pos, gamma) seeds this fit started from --
+    as a "before fitting" reference against the optimized "fit" curve. The residual
+    panel is always shown.
     """
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    from src.lineshapes import pseudo_voigt
+    from src.lineshapes import pseudo_voigt, lorentzian_np
 
     freq = np.asarray(freq, dtype=float)
     raw = np.asarray(raw_signal, dtype=float)
@@ -164,6 +181,13 @@ def build_fit_figure(freq, raw_signal, fit_result, edit_peaks, *, raw_freq=None,
             x=np.asarray(raw_freq, float), y=np.asarray(raw_intensity, float),
             name="raw", mode="lines", opacity=0.7,
             line=dict(color="#9ca3af", width=0.8, dash="dot"), hoverinfo="skip",
+        ), row=1, col=1)
+    if show_initial_proxy and initial_peaks:
+        proxy = np.sum([lorentzian_np(freq, float(A), float(p), float(g))
+                        for (A, p, g) in initial_peaks], axis=0)
+        fig.add_trace(go.Scatter(
+            x=freq, y=proxy, name="Initial FCN Proxy", mode="lines",
+            line=dict(color="#2563eb", width=1.3, dash="dash"), hoverinfo="skip",
         ), row=1, col=1)
     if show_fit:
         fig.add_trace(go.Scatter(x=freq, y=recon, name="fit", mode="lines",
