@@ -144,7 +144,9 @@ def build_fit_figure(freq, raw_signal, fit_result, edit_peaks, *, raw_freq=None,
 
     `edit_peaks` is a list of [A, x0, sigma, eta] -- ▼ markers AND the reconstruction
     curve are drawn from it, so manual edits and click-added peaks show immediately.
-    `fit_result` (dict from refine/refine_grouped) supplies only the linear baseline.
+    `fit_result["baseline"]` is a (b0, b1) linear-baseline placeholder -- refine /
+    refine_grouped always return (0.0, 0.0); this stays wired so a caller-supplied
+    background can be dropped in later without touching the plot code.
 
     `show_fit` toggles the summed reconstruction ("fit") curve; `show_components`
     toggles the per-peak curves. `show_initial_proxy` overlays the Lorentzian-sum

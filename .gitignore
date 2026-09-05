@@ -5,7 +5,7 @@
 __pycache__
 
 
-saved_models/*
 notebooks/reconstruction_demo.png
 detection_out/
-hard_mined_v1.npz
+*.npz
+

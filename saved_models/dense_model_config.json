@@ -1,0 +1,65 @@
+{
+  "N_INPUT_CHANNELS": 1,
+  "K": 28,
+  "n_points": 4800,
+  "pos_range": [
+    0,
+    800.0
+  ],
+  "amp_range": [
+    0.02,
+    14.0
+  ],
+  "gamma_range": [
+    1.0,
+    8.0
+  ],
+  "scale": 5000,
+  "dark": 0.02,
+  "window_width_range": [
+    30,
+    80
+  ],
+  "n_peak_max": 6,
+  "dataset_mix": {
+    "random": 0.45,
+    "sandwiched": 0.3,
+    "skewed": 0.45
+  },
+  "skew_small_range": [
+    0.3,
+    2.0
+  ],
+  "skew_large_range": [
+    4.0,
+    12.0
+  ],
+  "skew_large_prob": 0.05,
+  "BASE_LAYERS": [
+    {
+      "out_channels": 32,
+      "kernel_size": 15,
+      "stride": 1
+    },
+    {
+      "out_channels": 64,
+      "kernel_size": 11,
+      "stride": 2
+    },
+    {
+      "out_channels": 128,
+      "kernel_size": 9,
+      "stride": 2
+    },
+    {
+      "out_channels": 256,
+      "kernel_size": 7,
+      "stride": 2
+    },
+    {
+      "out_channels": 512,
+      "kernel_size": 5,
+      "stride": 2
+    }
+  ]
+}
